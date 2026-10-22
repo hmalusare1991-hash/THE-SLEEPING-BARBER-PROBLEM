@@ -1,0 +1,19 @@
+#pragma once
+#include "SimulationConfig.h"
+#include "Metrics.h"
+#include <functional>
+#include <string>
+
+class BarberAlgorithm {
+public:
+    using LogCallback = std::function<void(const std::string&)>;
+
+    virtual ~BarberAlgorithm() = default;
+    virtual void barberProcess() = 0;
+    virtual void customerProcess(int customerId) = 0;
+    virtual void stop() = 0;
+    virtual void setLogger(LogCallback callback) = 0;
+};
+#include "BarberAlgorithm.h"
+
+// Base class virtual destructor anchor
