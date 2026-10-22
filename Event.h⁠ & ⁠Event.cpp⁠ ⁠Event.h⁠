@@ -1,0 +1,22 @@
+#pragma once
+#include <string>
+#include <chrono>
+
+enum class EventType {
+    CustomerArrived,
+    CustomerSeated,
+    CustomerTurnedAway,
+    BarberWokenUp,
+    HaircutStarted,
+    HaircutFinished,
+    BarberSleeping
+};
+
+struct Event {
+    EventType type;
+    int customerId;
+    std::chrono::system_clock::time_point timestamp;
+    std::string message;
+
+    Event(EventType t, int id, std::string msg = "");
+};
