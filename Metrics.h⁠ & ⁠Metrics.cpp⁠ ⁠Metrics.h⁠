@@ -1,0 +1,17 @@
+#pragma once
+#include <atomic>
+
+struct Metrics {
+    std::atomic<int> customersServed{0};
+    std::atomic<int> customersTurnedAway{0};
+    std::atomic<int> totalBarberSleepTimeMs{0};
+
+    void reset();
+};
+#include "Metrics.h"
+
+void Metrics::reset() {
+    customersServed = 0;
+    customersTurnedAway = 0;
+    totalBarberSleepTimeMs = 0;
+}
