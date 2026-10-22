@@ -1,0 +1,78 @@
+#pragma once
+#include "BarberAlgorithm.h"
+#include "Semaphore.h"
+#include <atomic>
+#include <mutex>
+
+class SemaphoreAlgorithm : public BarberAlgorithm {
+private:
+    SimulationConfig config;
+    Metrics& metrics;
+    CountingSemaphore barberReady{0};
+    CountingSemaphore customerReady{0};
+    std::mutex seatMutex;
+    int freeSeats;
+    std::atomic<bool> running{true};
+    LogCallback logFn;
+
+public:
+    SemaphoreAlgorithm(const SimulationConfig& cfg, Metrics& m);
+    void barberProcess() override;
+    void customerProcess(int customerId) override;
+    void stop() override;
+    void setLogger(LogCallback callback) override;
+};
+#include "SemaphoreAlgorithm.h"
+#include "SimClock.h"
+#include <iostream>
+
+SemaphoreAlgorithm::SemaphoreAlgorithm(const SimulationConfig& cfg, Metrics& m)
+    : config(cfg), metrics(m), freeSeats(cfg.numChairs) {}
+
+void SemaphoreAlgorithm::setLogger(LogCallback callback) {
+    logFn = callback;
+}
+
+void SemaphoreAlgorithm::stop() {
+    running = false;
+    barberReady.release();
+    customerReady.release();
+}
+
+void SemaphoreAlgorithm::barberProcess() {
+    while (running) {
+        if (logFn) logFn("Barber is sleeping...");
+        customerReady.acquire();
+        if (!running) break;
+
+        {
+            std::lock_guard<std::mutex> lock(seatMutex);
+            ++freeSeats;
+        }
+
+        barberReady.release();
+
+        if (logFn) logFn("Barber is cutting hair...");
+        SimClock::sleep(config.cutDurationMs);
+        metrics.customersServed++;
+        if (logFn) logFn("Barber finished haircut.");
+    }
+}
+
+void SemaphoreAlgorithm::customerProcess(int customerId) {
+    std::unique_lock<std::mutex> lock(seatMutex);
+    if (logFn) logFn("Customer " + std::to_string(customerId) + " arrived.");
+
+    if (freeSeats > 0) {
+        --freeSeats;
+        if (logFn) logFn("Customer " + std::to_string(customerId) + " seated in waiting room. Free chairs: " + std::to_string(freeSeats));
+        customerReady.release();
+        lock.unlock();
+
+        barberReady.acquire();
+        if (logFn) logFn("Customer " + std::to_string(customerId) + " is receiving a haircut.");
+    } else {
+        metrics.customersTurnedAway++;
+        if (logFn) logFn("Customer " + std::to_string(customerId) + " leaves (waiting room is full).");
+    }
+}
