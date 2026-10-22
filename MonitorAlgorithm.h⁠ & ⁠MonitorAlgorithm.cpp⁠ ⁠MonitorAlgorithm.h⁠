@@ -1,0 +1,79 @@
+#pragma once
+#include "BarberAlgorithm.h"
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+
+class MonitorAlgorithm : public BarberAlgorithm {
+private:
+    SimulationConfig config;
+    Metrics& metrics;
+    std::mutex mtx;
+    std::condition_variable cvBarber;
+    std::condition_variable cvCustomer;
+    int waitingCustomers{0};
+    bool barberBusy{false};
+    std::atomic<bool> running{true};
+    LogCallback logFn;
+
+public:
+    MonitorAlgorithm(const SimulationConfig& cfg, Metrics& m);
+    void barberProcess() override;
+    void customerProcess(int customerId) override;
+    void stop() override;
+    void setLogger(LogCallback callback)  
+
+#include "MonitorAlgorithm.h"
+#include "SimClock.h"
+
+MonitorAlgorithm::MonitorAlgorithm(const SimulationConfig& cfg, Metrics& m)
+    : config(cfg), metrics(m) {}
+
+void MonitorAlgorithm::setLogger(LogCallback callback) {
+    logFn = callback;
+}
+
+void MonitorAlgorithm::stop() {
+    running = false;
+    cvBarber.notify_all();
+    cvCustomer.notify_all();
+}
+
+void MonitorAlgorithm::barberProcess() {
+    while (running) {
+        std::unique_lock<std::mutex> lock(mtx);
+        while (waitingCustomers == 0 && running) {
+            if (logFn) logFn("[Monitor] Barber is sleeping.");
+            cvBarber.wait(lock);
+        }
+        if (!running) break;
+
+        --waitingCustomers;
+        barberBusy = true;
+        cvCustomer.notify_one();
+        lock.unlock();
+
+        if (logFn) logFn("[Monitor] Barber is cutting hair.");
+        SimClock::sleep(config.cutDurationMs);
+        metrics.customersServed++;
+
+        lock.lock();
+        barberBusy = false;
+        if (logFn) logFn("[Monitor] Barber finished haircut.");
+    }
+}
+
+void MonitorAlgorithm::customerProcess(int customerId) {
+    std::unique_lock<std::mutex> lock(mtx);
+    if (logFn) logFn("[Monitor] Customer " + std::to_string(customerId) + " arrived.");
+
+    if (waitingCustomers < config.numChairs) {
+        ++waitingCustomers;
+        cvBarber.notify_one();
+        cvCustomer.wait(lock, [this]() { return barberBusy || !running; });
+        if (logFn) logFn("[Monitor] Customer " + std::to_string(customerId) + " started haircut.");
+    } else {
+        metrics.customersTurnedAway++;
+        if (logFn) logFn("[Monitor] Customer " + std::to_string(customerId) + " leaves (chairs full).");
+    }
+}
