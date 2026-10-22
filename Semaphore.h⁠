@@ -1,0 +1,25 @@
+#pragma once
+#include <mutex>
+#include <condition_variable>
+
+class CountingSemaphore {
+private:
+    std::mutex mtx;
+    std::condition_variable cv;
+    int count;
+
+public:
+    explicit CountingSemaphore(int initialCount = 0) : count(initialCount) {}
+
+    void acquire() {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [this]() { return count > 0; });
+        --count;
+    }
+
+    void release() {
+        std::unique_lock<std::mutex> lock(mtx);
+        ++count;
+        cv.notify_one();
+    }
+};
