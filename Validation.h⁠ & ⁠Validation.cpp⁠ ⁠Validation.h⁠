@@ -1,0 +1,25 @@
+#pragma once
+#include "SimulationConfig.h"
+#include "Metrics.h"
+
+class Validation {
+public:
+    static bool validate(const SimulationConfig& config, const Metrics& metrics);
+};
+#include "Validation.h"
+#include <iostream>
+
+bool Validation::validate(const SimulationConfig& config, const Metrics& metrics) {
+    int totalProcessed = metrics.customersServed.load() + metrics.customersTurnedAway.load();
+    bool passed = (totalProcessed == config.totalCustomers);
+
+    std::cout << "\n================ VALIDATION REPORT ================\n";
+    std::cout << "Expected Customers : " << config.totalCustomers << "\n";
+    std::cout << "Served Customers   : " << metrics.customersServed.load() << "\n";
+    std::cout << "Turned Away        : " << metrics.customersTurnedAway.load() << "\n";
+    std::cout << "Total Processed    : " << totalProcessed << "\n";
+    std::cout << "Result             : " << (passed ? "PASSED" : "FAILED") << "\n";
+    std::cout << "===================================================\n";
+
+    return passed;
+}
