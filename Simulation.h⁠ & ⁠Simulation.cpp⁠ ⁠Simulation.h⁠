@@ -1,0 +1,78 @@
+
+#pragma once
+#include "SimulationConfig.h"
+#include "Metrics.h"
+#include "BarberAlgorithm.h"
+#include <memory>
+#include <vector>
+#include <thread>
+
+class Simulation {
+private:
+    SimulationConfig config;
+    Metrics metrics;
+    std::unique_ptr<BarberAlgorithm> algorithm;
+    std::thread barberThread;
+    std::vector<std::thread> customerThreads;
+
+public:
+    enum class AlgorithmType { Semaphore, Monitor };
+
+    Simulation(SimulationConfig cfg, AlgorithmType type);
+    ~Simulation();
+
+    void start();
+    void join();
+    const Metrics& getMetrics() const;
+};
+
+
+#include "Simulation.h"
+#include "SemaphoreAlgorithm.h"
+#include "MonitorAlgorithm.h"
+#include "SimClock.h"
+#include <iostream>
+
+Simulation::Simulation(SimulationConfig cfg, AlgorithmType type) : config(cfg) {
+    if (type == AlgorithmType::Semaphore) {
+        algorithm = std::make_unique<SemaphoreAlgorithm>(config, metrics);
+    } else {
+        algorithm = std::make_unique<MonitorAlgorithm>(config, metrics);
+    }
+
+    algorithm->setLogger([](const std::string& msg) {
+        std::cout << msg << std::endl;
+    });
+}
+
+Simulation::~Simulation() {
+    if (algorithm) algorithm->stop();
+    if (barberThread.joinable()) barberThread.join();
+    for (auto& th : customerThreads) {
+        if (th.joinable()) th.join();
+    }
+}
+
+void Simulation::start() {
+    barberThread = std::thread(&BarberAlgorithm::barberProcess, algorithm.get());
+
+    for (int i = 1; i <= config.totalCustomers; ++i) {
+        customerThreads.emplace_back(&BarberAlgorithm::customerProcess, algorithm.get(), i);
+        SimClock::sleep(config.arrivalIntervalMs);
+    }
+}
+
+void Simulation::join() {
+    for (auto& th : customerThreads) {
+        if (th.joinable()) th.join();
+    }
+    SimClock::sleep(config.cutDurationMs * 2);
+    algorithm->stop();
+    if (barberThread.joinable()) barberThread.join();
+}
+
+const Metrics& Simulation::getMetrics() const {
+    return metrics;
+}
+
+
