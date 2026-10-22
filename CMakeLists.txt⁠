@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.16)
+project(SleepingBarber LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Threads REQUIRED)
+
+add_executable(ConsoleTest
+    console_test.cpp
+    BarberAlgorithm.cpp
+    SemaphoreAlgorithm.cpp
+    MonitorAlgorithm.cpp
+    Event.cpp
+    Metrics.cpp
+    Simulation.cpp
+    Validation.cpp
+)
+
+target_link_libraries(ConsoleTest PRIVATE Threads::Threads)
